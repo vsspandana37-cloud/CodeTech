@@ -47,3 +47,5 @@ HTML5 Blob Layer Compilation: Uses the browser's Blob data constructor to pack i
 
 
 OUTPUT:
+
+<img width="1885" height="890" alt="Image" src="https://github.com/user-attachments/assets/bcd88dea-3092-468a-8db5-6e2fa81418d5" />
