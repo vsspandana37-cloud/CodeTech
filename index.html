@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CollabDocs - Real-Time Collaborative Editor</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0e0e12;
+    --surface: #16161e;
+    --surface2: #1e1e2a;
+    --border: #2a2a3a;
+    --accent: #f97316;
+    --accent2: #3b82f6;
+    --green: #22c55e;
+    --red: #ef4444;
+    --text: #e8e8f0;
+    --muted: #6b6b80;
+    --cursor1: #f97316;
+    --cursor2: #3b82f6;
+    --cursor3: #a855f7;
+    --cursor4: #22c55e;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── TOP BAR ── */
+  #topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    height: 54px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    gap: 12px;
+  }
+
+  #logo {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  #logo span { color: var(--text); }
+
+  #doc-title-input {
+    background: transparent;
+    border: none;
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    outline: none;
+    min-width: 180px;
+    max-width: 320px;
+    flex: 1;
+    border-bottom: 2px solid transparent;
+    transition: border-color .2s;
+    padding: 2px 4px;
+  }
+  #doc-title-input:focus { border-bottom-color: var(--accent); }
+
+  #save-status {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--green);
+    white-space: nowrap;
+    transition: color .3s;
+  }
+  #save-status.saving { color: var(--accent); }
+
+  #collaborators {
+    display: flex;
+    align-items: center;
+    gap: -6px;
+  }
+  .avatar {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 2px solid var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+    margin-left: -8px;
+    cursor: default;
+    transition: transform .2s;
+    position: relative;
+  }
+  .avatar:first-child { margin-left: 0; }
+  .avatar:hover { transform: translateY(-3px) scale(1.15); z-index: 10; }
+  .avatar .tooltip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    z-index: 99;
+  }
+  .avatar:hover .tooltip { display: block; }
+
+  #btn-share {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 7px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .2s, transform .1s;
+  }
+  #btn-share:hover { background: #ea6c0a; transform: scale(1.03); }
+  #btn-share:active { transform: scale(0.97); }
+
+  /* ── TOOLBAR ── */
+  #toolbar {
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    height: 42px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    gap: 4px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    overflow: hidden;
+  }
+
+  .tb-sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
+
+  .tb-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+    font-family: 'Syne', sans-serif;
+    padding: 4px 9px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background .15s, color .15s, border-color .15s;
+    white-space: nowrap;
+  }
+  .tb-btn:hover { background: var(--border); color: var(--text); }
+  .tb-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .tb-select {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    padding: 3px 6px;
+    border-radius: 5px;
+    cursor: pointer;
+    outline: none;
+  }
+  .tb-select option { background: var(--surface2); }
+
+  /* ── MAIN LAYOUT ── */
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── SIDEBAR ── */
+  #sidebar {
+    width: 240px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .sidebar-section {
+    padding: 14px 14px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .doc-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text);
+    transition: background .15s;
+    margin-bottom: 2px;
+  }
+  .doc-item:hover { background: var(--surface2); }
+  .doc-item.active { background: var(--accent); color: #fff; }
+  .doc-item .doc-icon { font-size: 14px; flex-shrink: 0; }
+  .doc-item .doc-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .doc-item .doc-badge {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green);
+    flex-shrink: 0;
+  }
+
+  #btn-new-doc {
+    margin: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--surface2);
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font-size: 13px;
+    font-family: 'Syne', sans-serif;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+    width: calc(100% - 28px);
+  }
+  #btn-new-doc:hover { background: var(--border); color: var(--text); }
+
+  /* activity log */
+  #activity-log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 14px;
+  }
+  .activity-item {
+    display: flex;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--muted);
+    animation: fadein .4s;
+  }
+  .activity-item .av-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-top: 3px;
+    flex-shrink: 0;
+  }
+  @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  /* ── EDITOR AREA ── */
+  #editor-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  #editor-page-wrap {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    justify-content: center;
+    padding: 32px 20px;
+  }
+
+  #editor-page {
+    width: 100%;
+    max-width: 820px;
+    min-height: 1000px;
+    background: #1a1a24;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    padding: 48px 56px;
+    position: relative;
+    box-shadow: 0 8px 40px rgba(0,0,0,.5);
+  }
+
+  #editor {
+    outline: none;
+    min-height: 900px;
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    line-height: 1.8;
+    color: var(--text);
+    caret-color: var(--accent);
+    word-break: break-word;
+  }
+
+  #editor:empty::before {
+    content: attr(data-placeholder);
+    color: var(--muted);
+    pointer-events: none;
+  }
+
+  #editor h1 { font-size: 28px; font-weight: 800; margin: 0 0 16px; color: var(--text); }
+  #editor h2 { font-size: 22px; font-weight: 700; margin: 20px 0 12px; }
+  #editor h3 { font-size: 17px; font-weight: 700; margin: 16px 0 8px; }
+  #editor p  { margin: 0 0 12px; }
+  #editor ul, #editor ol { margin: 0 0 12px; padding-left: 24px; }
+  #editor li { margin-bottom: 4px; }
+  #editor blockquote {
+    border-left: 3px solid var(--accent);
+    padding: 8px 16px;
+    margin: 12px 0;
+    background: rgba(249,115,22,.07);
+    border-radius: 0 6px 6px 0;
+    color: var(--muted);
+  }
+  #editor code {
+    font-family: 'Space Mono', monospace;
+    background: var(--surface2);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: var(--accent2);
+  }
+  #editor pre {
+    font-family: 'Space Mono', monospace;
+    background: var(--surface2);
+    padding: 14px 18px;
+    border-radius: 6px;
+    margin: 12px 0;
+    overflow-x: auto;
+    font-size: 13px;
+    color: var(--accent2);
+    border: 1px solid var(--border);
+  }
+  #editor a { color: var(--accent2); text-decoration: underline; }
+  #editor strong { color: #fff; }
+  #editor em { color: #d4d4f0; font-style: italic; }
+
+  /* fake remote cursors */
+  .remote-cursor {
+    position: absolute;
+    width: 2px;
+    border-radius: 2px;
+    pointer-events: none;
+    animation: blink 1.1s step-end infinite;
+    z-index: 5;
+  }
+  .remote-cursor::after {
+    content: attr(data-name);
+    position: absolute;
+    top: -20px;
+    left: 0;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: 'Space Mono', monospace;
+    white-space: nowrap;
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: #fff;
+    background: inherit;
+    opacity: .9;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ── STATUS BAR ── */
+  #statusbar {
+    height: 26px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 20px;
+    flex-shrink: 0;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+  #statusbar span { display: flex; align-items: center; gap: 5px; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  /* ── RIGHT PANEL ── */
+  #rightpanel {
+    width: 220px;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .rp-tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+  }
+  .rp-tab {
+    flex: 1;
+    padding: 10px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    cursor: pointer;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
+  }
+  .rp-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .rp-panel { display: none; flex: 1; overflow-y: auto; padding: 12px; }
+  .rp-panel.active { display: block; }
+
+  .comment-card {
+    background: var(--surface2);
+    border-radius: 6px;
+    padding: 10px;
+    margin-bottom: 8px;
+    border: 1px solid var(--border);
+    font-size: 12px;
+    animation: fadein .3s;
+  }
+  .comment-card .cc-header {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 5px;
+  }
+  .comment-card .cc-av {
+    width: 20px; height: 20px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 700; color: #fff;
+  }
+  .comment-card .cc-name { font-weight: 700; color: var(--text); }
+  .comment-card .cc-time { color: var(--muted); font-size: 10px; margin-left: auto; }
+  .comment-card .cc-text { color: #c0c0d8; line-height: 1.5; }
+
+  #comment-input-wrap {
+    padding: 10px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 6px;
+  }
+  #comment-input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    padding: 6px 8px;
+    border-radius: 5px;
+    outline: none;
+    resize: none;
+    height: 36px;
+  }
+  #comment-input:focus { border-color: var(--accent); }
+  #btn-comment {
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    font-size: 16px;
+    padding: 0 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background .2s;
+  }
+  #btn-comment:hover { background: #ea6c0a; }
+
+  /* version history */
+  .version-item {
+    background: var(--surface2);
+    border-radius: 6px;
+    padding: 9px 10px;
+    margin-bottom: 6px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: border-color .15s;
+    font-size: 12px;
+  }
+  .version-item:hover { border-color: var(--accent); }
+  .version-item .vi-label { font-weight: 700; color: var(--text); margin-bottom: 3px; }
+  .version-item .vi-meta { color: var(--muted); font-size: 10px; font-family: 'Space Mono', monospace; }
+
+  /* modal */
+  #modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.65);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  #modal-overlay.show { display: flex; }
+  #modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 28px 32px;
+    width: 420px;
+    max-width: 95vw;
+    animation: fadein .25s;
+  }
+  #modal h2 { font-size: 18px; font-weight: 800; margin-bottom: 16px; }
+  .share-link-wrap {
+    display: flex; gap: 8px; margin-bottom: 12px;
+  }
+  .share-link-input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    outline: none;
+  }
+  .btn-copy {
+    background: var(--accent2);
+    color: #fff;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background .2s;
+  }
+  .btn-copy:hover { background: #2563eb; }
+  .perm-label { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .perm-toggle { display: flex; gap: 8px; }
+  .perm-opt {
+    flex: 1; text-align: center;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    color: var(--muted);
+    transition: all .15s;
+  }
+  .perm-opt.active { border-color: var(--accent); color: var(--accent); background: rgba(249,115,22,.1); }
+  .btn-close-modal {
+    margin-top: 16px;
+    display: block;
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 9px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .btn-close-modal:hover { background: var(--border); }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* toast */
+  #toast {
+    position: fixed;
+    bottom: 36px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--green);
+    color: #fff;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    padding: 10px 22px;
+    border-radius: 20px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .3s, transform .3s;
+    z-index: 200;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div id="logo">Collab<span>Docs</span></div>
+  <input id="doc-title-input" value="Product Roadmap Q3 2026" spellcheck="false" />
+  <div id="save-status">&#10003; Saved</div>
+  <div id="collaborators"></div>
+  <button id="btn-share" onclick="openModal()">&#128279; Share</button>
+</div>
+
+<!-- TOOLBAR -->
+<div id="toolbar">
+  <select class="tb-select" id="sel-heading" onchange="applyHeading(this.value)">
+    <option value="p">Paragraph</option>
+    <option value="h1">Heading 1</option>
+    <option value="h2">Heading 2</option>
+    <option value="h3">Heading 3</option>
+  </select>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" onclick="fmt('bold')" title="Bold"><b>B</b></button>
+  <button class="tb-btn" onclick="fmt('italic')" title="Italic"><i>I</i></button>
+  <button class="tb-btn" onclick="fmt('underline')" title="Underline"><u>U</u></button>
+  <button class="tb-btn" onclick="fmt('strikeThrough')" title="Strikethrough"><s>S</s></button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" onclick="fmt('insertUnorderedList')" title="Bullet list">&#8226; List</button>
+  <button class="tb-btn" onclick="fmt('insertOrderedList')" title="Numbered list">1. List</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" onclick="insertBlockquote()" title="Blockquote">&#10077;</button>
+  <button class="tb-btn" onclick="insertCode()" title="Inline code">&lt;/&gt;</button>
+  <button class="tb-btn" onclick="insertHR()" title="Divider">&#9135;</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" onclick="fmt('justifyLeft')" title="Align left">&#8676;</button>
+  <button class="tb-btn" onclick="fmt('justifyCenter')" title="Center">&#8677;</button>
+  <button class="tb-btn" onclick="fmt('justifyRight')" title="Align right">&#8678;</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" onclick="document.execCommand('undo')" title="Undo">&#8634;</button>
+  <button class="tb-btn" onclick="document.execCommand('redo')" title="Redo">&#8635;</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" onclick="exportDoc()" title="Export HTML">&#8659; Export</button>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">Documents</div>
+      <div id="doc-list"></div>
+      <button id="btn-new-doc" onclick="createNewDoc()">+ New Document</button>
+    </div>
+    <div class="sidebar-section" style="border-bottom:none;flex:1;overflow:hidden;display:flex;flex-direction:column;">
+      <div class="sidebar-title">Activity</div>
+      <div id="activity-log"></div>
+    </div>
+  </div>
+
+  <!-- EDITOR -->
+  <div id="editor-wrap">
+    <div id="editor-page-wrap">
+      <div id="editor-page">
+        <div id="editor"
+          contenteditable="true"
+          spellcheck="true"
+          data-placeholder="Start typing your document..."></div>
+      </div>
+    </div>
+    <!-- STATUS BAR -->
+    <div id="statusbar">
+      <span><span class="status-dot" style="background:var(--green)"></span> Connected</span>
+      <span id="wc-stat">Words: 0</span>
+      <span id="cc-stat">Chars: 0</span>
+      <span id="sel-stat">Ln 1, Col 1</span>
+      <span style="margin-left:auto;" id="collab-stat">3 collaborators online</span>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="rightpanel">
+    <div class="rp-tab-bar">
+      <div class="rp-tab active" onclick="switchTab('comments',this)">Comments</div>
+      <div class="rp-tab" onclick="switchTab('versions',this)">History</div>
+    </div>
+
+    <div class="rp-panel active" id="panel-comments">
+      <div id="comments-list"></div>
+    </div>
+    <div class="rp-panel" id="panel-versions">
+      <div id="versions-list"></div>
+    </div>
+
+    <div id="comment-input-wrap">
+      <textarea id="comment-input" placeholder="Add comment..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();postComment();}"></textarea>
+      <button id="btn-comment" onclick="postComment()">&#10148;</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- SHARE MODAL -->
+<div id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div id="modal">
+    <h2>Share Document</h2>
+    <div class="share-link-wrap">
+      <input class="share-link-input" id="share-link" readonly value="https://collabdocs.app/d/xK9mP2rQ8w" />
+      <button class="btn-copy" onclick="copyLink()">Copy</button>
+    </div>
+    <div class="perm-label">Who can edit?</div>
+    <div class="perm-toggle">
+      <div class="perm-opt active" onclick="setPerm(this,'view')">View only</div>
+      <div class="perm-opt" onclick="setPerm(this,'comment')">Comment</div>
+      <div class="perm-opt" onclick="setPerm(this,'edit')">Edit</div>
+    </div>
+    <button class="btn-close-modal" onclick="closeModal()">Done</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ── DATA ───────────────────────────────────────────────────────
+const USERS = [
+  { id:1, name:'You',       initials:'YO', color:'#f97316' },
+  { id:2, name:'Aisha R.',  initials:'AR', color:'#3b82f6' },
+  { id:3, name:'Dev K.',    initials:'DK', color:'#a855f7' },
+  { id:4, name:'Priya S.',  initials:'PS', color:'#22c55e' },
+];
+
+// ── STATE ──────────────────────────────────────────────────────
+let docs = [
+  { id:1, name:'Product Roadmap Q3 2026', active:true,
+    content:`<h1>Product Roadmap Q3 2026</h1>
+<p>Welcome to the <strong>Real-Time Collaborative Document Editor</strong>. This workspace lets your entire team write, review, and iterate together — in real time.</p>
+<h2>Core Features</h2>
+<ul>
+<li>Rich-text editing with formatting toolbar</li>
+<li>Live presence indicators and remote cursors</li>
+<li>Inline comments and threaded discussions</li>
+<li>Version history with one-click restore</li>
+<li>Secure share links with permission controls</li>
+</ul>
+<h2>Tech Stack</h2>
+<ul>
+<li><strong>Frontend:</strong> React.js for dynamic, responsive UI</li>
+<li><strong>Backend:</strong> Node.js with WebSocket (Socket.IO) for real-time sync</li>
+<li><strong>Database:</strong> MongoDB for document storage, PostgreSQL for user/auth data</li>
+</ul>
+<h2>Q3 Milestones</h2>
+<ol>
+<li>Real-time conflict resolution via Operational Transforms</li>
+<li>Offline mode with sync on reconnect</li>
+<li>AI-powered grammar and style suggestions</li>
+<li>Mobile-responsive editor view</li>
+</ol>
+<blockquote>Collaboration is not just about working together — it is about thinking together.</blockquote>
+<p>Edit this document to get started. All changes are saved automatically.</p>` },
+  { id:2, name:'Meeting Notes — June',  active:false, content:'<h1>Meeting Notes</h1><p>Add notes here...</p>' },
+  { id:3, name:'Sprint 14 Planning',    active:false, content:'<h1>Sprint 14</h1><p>Tasks and goals...</p>' },
+];
+let currentDocId = 1;
+let comments = [
+  { id:1, user:USERS[1], text:'Can we add the tech stack section?', time:'2m ago' },
+  { id:2, user:USERS[2], text:'Updated milestones for accuracy.', time:'5m ago' },
+];
+let versions = [
+  { id:1, label:'v3 — Latest',  who:'You',      time:'Just now' },
+  { id:2, label:'v2',           who:'Aisha R.',  time:'12m ago' },
+  { id:3, label:'v1 — Initial', who:'Dev K.',    time:'1h ago' },
+];
+let saveTimer = null;
+
+// ── INIT ───────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  renderCollaborators();
+  renderDocList();
+  loadDoc(currentDocId);
+  renderComments();
+  renderVersions();
+  simulateActivity();
+  simulateCursors();
+});
+
+// ── COLLABORATORS ──────────────────────────────────────────────
+function renderCollaborators() {
+  const el = document.getElementById('collaborators');
+  el.innerHTML = USERS.map(u =>
+    `<div class="avatar" style="background:${u.color}">
+       ${u.initials}
+       <div class="tooltip">${u.name}</div>
+     </div>`
+  ).join('');
+}
+
+// ── DOC LIST ───────────────────────────────────────────────────
+function renderDocList() {
+  const el = document.getElementById('doc-list');
+  el.innerHTML = docs.map(d =>
+    `<div class="doc-item ${d.id===currentDocId?'active':''}" onclick="switchDoc(${d.id})">
+       <span class="doc-icon">&#128196;</span>
+       <span class="doc-name">${d.name}</span>
+       ${d.id===1 ? '<span class="doc-badge"></span>' : ''}
+     </div>`
+  ).join('');
+}
+
+function switchDoc(id) {
+  // save current
+  const cur = docs.find(d=>d.id===currentDocId);
+  if(cur) cur.content = document.getElementById('editor').innerHTML;
+  currentDocId = id;
+  renderDocList();
+  loadDoc(id);
+}
+
+function loadDoc(id) {
+  const d = docs.find(x=>x.id===id);
+  if(!d) return;
+  document.getElementById('editor').innerHTML = d.content;
+  document.getElementById('doc-title-input').value = d.name;
+  updateStats();
+}
+
+function createNewDoc() {
+  const id = Date.now();
+  const name = 'New Document';
+  docs.push({ id, name, active:false, content:`<h1>${name}</h1><p>Start writing here...</p>` });
+  switchDoc(id);
+  addActivity(USERS[0], 'created a new document');
+  showToast('New document created');
+}
+
+// ── EDITOR ─────────────────────────────────────────────────────
+document.getElementById('editor').addEventListener('input', () => {
+  updateStats();
+  triggerSave();
+});
+
+document.getElementById('doc-title-input').addEventListener('input', function() {
+  const d = docs.find(x=>x.id===currentDocId);
+  if(d) d.name = this.value;
+  renderDocList();
+  triggerSave();
+});
+
+function fmt(cmd) {
+  document.getElementById('editor').focus();
+  document.execCommand(cmd, false, null);
+}
+
+function applyHeading(tag) {
+  document.getElementById('editor').focus();
+  document.execCommand('formatBlock', false, `<${tag}>`);
+}
+
+function insertBlockquote() {
+  document.getElementById('editor').focus();
+  document.execCommand('formatBlock', false, '<blockquote>');
+}
+
+function insertCode() {
+  const sel = window.getSelection();
+  if(!sel.rangeCount) return;
+  const code = document.createElement('code');
+  code.textContent = sel.toString() || 'code';
+  const range = sel.getRangeAt(0);
+  range.deleteContents();
+  range.insertNode(code);
+}
+
+function insertHR() {
+  document.getElementById('editor').focus();
+  document.execCommand('insertHTML', false, '<hr style="border:none;border-top:1px solid #2a2a3a;margin:16px 0">');
+}
+
+function updateStats() {
+  const text = document.getElementById('editor').innerText || '';
+  const words = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+  document.getElementById('wc-stat').textContent = `Words: ${words}`;
+  document.getElementById('cc-stat').textContent = `Chars: ${text.length}`;
+}
+
+function triggerSave() {
+  const ss = document.getElementById('save-status');
+  ss.textContent = '... Saving';
+  ss.className = 'saving';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    const cur = docs.find(d=>d.id===currentDocId);
+    if(cur) cur.content = document.getElementById('editor').innerHTML;
+    saveVersionSnapshot();
+    ss.textContent = '✓ Saved';
+    ss.className = '';
+  }, 1500);
+}
+
+// ── EXPORT ─────────────────────────────────────────────────────
+function exportDoc() {
+  const title = document.getElementById('doc-title-input').value || 'document';
+  const content = document.getElementById('editor').innerHTML;
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title>
+<style>body{font-family:Georgia,serif;max-width:820px;margin:60px auto;color:#1a1a1a;line-height:1.8}
+h1{font-size:2em}h2{font-size:1.5em}blockquote{border-left:3px solid #f97316;padding:8px 16px;background:#fff8f5}
+code{background:#f0f0f0;padding:2px 6px;border-radius:4px}pre{background:#f0f0f0;padding:16px;border-radius:6px}</style>
+</head><body>${content}</body></html>`;
+  const blob = new Blob([html], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = title.replace(/\s+/g,'_') + '.html';
+  a.click();
+  showToast('Document exported as HTML');
+}
+
+// ── COMMENTS ───────────────────────────────────────────────────
+function renderComments() {
+  document.getElementById('comments-list').innerHTML = comments.map(c =>
+    `<div class="comment-card">
+      <div class="cc-header">
+        <div class="cc-av" style="background:${c.user.color}">${c.user.initials}</div>
+        <span class="cc-name">${c.user.name}</span>
+        <span class="cc-time">${c.time}</span>
+      </div>
+      <div class="cc-text">${c.text}</div>
+     </div>`
+  ).join('');
+}
+
+function postComment() {
+  const inp = document.getElementById('comment-input');
+  const text = inp.value.trim();
+  if(!text) return;
+  comments.unshift({ id: Date.now(), user: USERS[0], text, time: 'Just now' });
+  inp.value = '';
+  renderComments();
+  addActivity(USERS[0], 'added a comment');
+  showToast('Comment posted');
+}
+
+// ── VERSIONS ───────────────────────────────────────────────────
+function renderVersions() {
+  document.getElementById('versions-list').innerHTML = versions.map(v =>
+    `<div class="version-item" onclick="restoreVersion(${v.id})">
+      <div class="vi-label">${v.label}</div>
+      <div class="vi-meta">${v.who} &bull; ${v.time}</div>
+     </div>`
+  ).join('');
+}
+
+function saveVersionSnapshot() {
+  if(versions.length > 8) versions.pop();
+  const label = `v${versions.length + 1}`;
+  versions.unshift({ id: Date.now(), label, who: 'You', time: 'Just now' });
+  renderVersions();
+}
+
+function restoreVersion(id) {
+  showToast('Version restored');
+  addActivity(USERS[0], 'restored a version');
+}
+
+// ── TABS ────────────────────────────────────────────────────────
+function switchTab(name, el) {
+  document.querySelectorAll('.rp-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.rp-panel').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('panel-'+name).classList.add('active');
+}
+
+// ── MODAL ───────────────────────────────────────────────────────
+function openModal() { document.getElementById('modal-overlay').classList.add('show'); }
+function closeModal() { document.getElementById('modal-overlay').classList.remove('show'); }
+function copyLink() {
+  navigator.clipboard.writeText(document.getElementById('share-link').value).catch(()=>{});
+  showToast('Link copied to clipboard');
+}
+function setPerm(el, val) {
+  document.querySelectorAll('.perm-opt').forEach(o=>o.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── TOAST ────────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+// ── ACTIVITY LOG ─────────────────────────────────────────────────
+function addActivity(user, action) {
+  const log = document.getElementById('activity-log');
+  const item = document.createElement('div');
+  item.className = 'activity-item';
+  item.innerHTML = `<span class="av-dot" style="background:${user.color}"></span>
+    <span><b>${user.name}</b> ${action}</span>`;
+  log.insertBefore(item, log.firstChild);
+  while(log.children.length > 20) log.lastChild.remove();
+}
+
+// ── SIMULATE REMOTE ACTIVITY ─────────────────────────────────────
+const ACTIONS = [
+  'edited the document','added a comment','joined the document',
+  'restored a version','changed permissions','shared the document',
+];
+function simulateActivity() {
+  addActivity(USERS[1], 'joined the document');
+  addActivity(USERS[2], 'edited the document');
+  addActivity(USERS[3], 'added a comment');
+  setInterval(() => {
+    const u = USERS[1 + Math.floor(Math.random()*3)];
+    const a = ACTIONS[Math.floor(Math.random()*ACTIONS.length)];
+    addActivity(u, a);
+  }, 7000);
+}
+
+// ── SIMULATE CURSORS ─────────────────────────────────────────────
+function simulateCursors() {
+  const page = document.getElementById('editor-page');
+  const cursorData = [
+    { user: USERS[1], top: 140, left: 60 },
+    { user: USERS[2], top: 300, left: 200 },
+  ];
+  cursorData.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'remote-cursor';
+    el.style.background = c.user.color;
+    el.style.top = c.top + 'px';
+    el.style.left = c.left + 'px';
+    el.style.height = '18px';
+    el.setAttribute('data-name', c.user.name);
+    page.appendChild(el);
+
+    // random drift
+    setInterval(() => {
+      const dt = (Math.random() - 0.5) * 40;
+      const dl = (Math.random() - 0.5) * 60;
+      const nt = Math.max(60, Math.min(800, parseFloat(el.style.top) + dt));
+      const nl = Math.max(10, Math.min(700, parseFloat(el.style.left) + dl));
+      el.style.transition = 'top 1.5s ease, left 1.5s ease';
+      el.style.top  = nt + 'px';
+      el.style.left = nl + 'px';
+    }, 3500 + Math.random()*2000);
+  });
+}
+</script>
+</body>
+</html>
